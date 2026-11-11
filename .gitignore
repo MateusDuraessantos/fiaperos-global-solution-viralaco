@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+.cache/
+.pnpm-store/
+*.tsbuildinfo
+*.log
+.env
+.env.*
+!.env.example
+apps/api/src/generated/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: viralaco
+          POSTGRES_USER: viralaco
+          POSTGRES_PASSWORD: viralaco_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U viralaco -d viralaco"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://viralaco:viralaco_ci@localhost:5432/viralaco?schema=public
+      CORS_ORIGIN: http://localhost:5173
+      VITE_API_URL: http://localhost:3000/api
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: pnpm/action-setup@v6.1.1
+        with:
+          run_install: false
+
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare environment and Prisma Client
+        run: pnpm setup:dev
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Validate Prisma schema
+        run: pnpm db:validate
+
+      - name: Check database connection
+        run: pnpm db:check
+
+      - name: Check TypeScript
+        run: pnpm typecheck
+
+      - name: Build applications
+        run: pnpm build
+
+      - name: Smoke test
+        run: pnpm test:smoke
+
+      - name: Store build artifacts
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: applications-${{ github.sha }}
+          path: |
+            apps/web/dist
+            apps/api/dist
+          if-no-files-found: error
+          retention-days: 7
